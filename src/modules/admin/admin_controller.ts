@@ -4,6 +4,9 @@ import {
   Request,
   Response,
   sendResponse,
+  HttpError,
+  adminCreateUserValidation,
+  adminUpdateUserValidation,
 } from "../../imports";
 import AdminServices from "./admin_services";
 import type { RangeFilter } from "./admin_repo";
@@ -68,6 +71,31 @@ class AdminController {
     const { page, limit } = parsePage(req);
     const data = await AdminServices.events(parseFilter(req), page, limit);
     return sendResponse(res, 200, "Events", data, "success");
+  });
+
+  // ── User management ───────────────────────────────────────────────────────────
+  static createUser = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+      const { error, value } = adminCreateUserValidation.validate({ ...req.body });
+      if (error) return next(HttpError.validationError(error.details[0].message));
+      const data = await AdminServices.createUser(value);
+      return sendResponse(res, 201, "User created", data, "success");
+    }
+  );
+
+  static updateUser = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+      const { error, value } = adminUpdateUserValidation.validate({ ...req.body });
+      if (error) return next(HttpError.validationError(error.details[0].message));
+      const data = await AdminServices.updateUser(req.params.id, value);
+      return sendResponse(res, 200, "User updated", data, "success");
+    }
+  );
+
+  static revokeDevice = asyncHandler(async (req: Request, res: Response) => {
+    const revoked = req.body?.revoked !== false; // default true
+    const data = await AdminServices.revokeDevice(req.params.id, revoked);
+    return sendResponse(res, 200, "Device updated", data, "success");
   });
 }
 

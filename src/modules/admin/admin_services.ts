@@ -1,5 +1,6 @@
 import AdminRepo, { RangeFilter } from "./admin_repo";
 import { presignGet, isR2Configured } from "../../utils/r2";
+import { encryptPass, HttpError } from "../../imports";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -112,6 +113,41 @@ class AdminServices {
 
   static events(f: RangeFilter, page: number, limit: number) {
     return AdminRepo.listEvents(f, page, limit);
+  }
+
+  // ── User management ───────────────────────────────────────────────────────────
+  static async createUser(payload: {
+    email: string;
+    password: string;
+    fullName: string;
+    phoneNumber: string;
+    role: string;
+  }) {
+    const exists = await AdminRepo.findUserByEmail(payload.email);
+    if (exists) throw HttpError.alreadyExists("Email");
+    const hashed = await encryptPass(payload.password);
+    return AdminRepo.createUser({ ...payload, password: hashed });
+  }
+
+  static async updateUser(
+    userId: string,
+    changes: { fullName?: string; role?: string; isActive?: boolean; phoneNumber?: string }
+  ) {
+    const updated = await AdminRepo.updateUser(userId, changes);
+    if (!updated) throw HttpError.notFound("User not found");
+    return {
+      id: String((updated as any)._id),
+      email: (updated as any).email,
+      fullName: (updated as any).fullName,
+      role: (updated as any).role,
+      isActive: (updated as any).IsActive,
+    };
+  }
+
+  static async revokeDevice(deviceId: string, revoked: boolean) {
+    const d = await AdminRepo.setDeviceRevoked(deviceId, revoked);
+    if (!d) throw HttpError.notFound("Device not found");
+    return { id: String((d as any)._id), revoked: (d as any).revoked };
   }
 }
 

@@ -220,6 +220,50 @@ class AdminRepo {
     return { items, total };
   }
 
+  // ── User management ───────────────────────────────────────────────────────────
+  static findUserByEmail(email: string) {
+    return UserModel.findOne({ email: email.toLowerCase() });
+  }
+
+  static async createUser(payload: {
+    email: string;
+    password: string;
+    fullName: string;
+    phoneNumber: string;
+    role: string;
+  }) {
+    const u = await UserModel.create(payload);
+    return {
+      id: String(u._id),
+      email: u.email,
+      fullName: u.fullName,
+      role: u.role,
+      isActive: u.IsActive,
+      createdAt: u.createdAt,
+      deviceCount: 0,
+    };
+  }
+
+  static async updateUser(
+    userId: string,
+    changes: { fullName?: string; role?: string; isActive?: boolean; phoneNumber?: string }
+  ) {
+    const set: Record<string, unknown> = {};
+    if (changes.fullName !== undefined) set.fullName = changes.fullName;
+    if (changes.role !== undefined) set.role = changes.role;
+    if (changes.isActive !== undefined) set.IsActive = changes.isActive;
+    if (changes.phoneNumber !== undefined) set.phoneNumber = changes.phoneNumber;
+    return UserModel.findByIdAndUpdate(userId, { $set: set }, { new: true }).lean();
+  }
+
+  static async setDeviceRevoked(deviceId: string, revoked: boolean) {
+    return DeviceModel.findByIdAndUpdate(
+      deviceId,
+      { $set: { revoked } },
+      { new: true }
+    ).lean();
+  }
+
   static async listEvents(f: RangeFilter, page: number, limit: number) {
     const m: Record<string, unknown> = {
       atUtc: { $gte: f.from, $lte: f.to },

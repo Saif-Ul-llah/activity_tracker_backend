@@ -9,7 +9,10 @@ router.use(checkToken, checkAdmin);
 
 router.get("/overview", AdminController.overview);
 router.get("/users", AdminController.users);
+router.post("/users", AdminController.createUser);
+router.patch("/users/:id", AdminController.updateUser);
 router.get("/devices", AdminController.devices);
+router.post("/devices/:id/revoke", AdminController.revokeDevice);
 router.get("/activity", AdminController.activity);
 router.get("/screenshots", AdminController.screenshots);
 router.get("/events", AdminController.events);
