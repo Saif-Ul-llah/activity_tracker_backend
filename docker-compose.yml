@@ -1,0 +1,57 @@
+version: '3.8'
+services:
+    mongo:
+      image: "mongo:7"
+      restart: unless-stopped
+      container_name: mongo_db
+      ports:
+        - "27017:27017"
+      volumes:
+        - mongo_volume:/data/db
+      healthcheck:
+        test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+        start_period: 30s
+      logging:
+        driver: "json-file"
+        options:
+          max-size: "200m"
+          max-file: "10"
+      networks:
+        - backend-network
+      deploy:
+        resources:
+          limits:
+            memory: 1G
+          reservations:
+            memory: 512M
+
+    node_backend:
+      build: .
+      image: "node_backend"
+      container_name: node_app
+      ports:
+        - "5000:5000"
+      healthcheck:
+        test: ["CMD", "pm2", "ping"]
+        interval: 10s
+        timeout: 5s
+        retries: 3
+      restart: unless-stopped
+      depends_on:
+        mongo:
+          condition: service_healthy
+      environment:
+        - MONGO_URI=${MONGO_URI:-mongodb://mongo:27017/ts_boiler_plate_mern}
+        - JWT_SECRET=${JWT_SECRET}
+      networks:
+        - backend-network
+
+networks:
+  backend-network:
+    driver: bridge
+
+volumes:
+  mongo_volume:

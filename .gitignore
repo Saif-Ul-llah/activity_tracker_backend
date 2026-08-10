@@ -1,0 +1,15 @@
+node_modules
+service_account_key.json
+migrations
+
+dist
+config.bat
+
+# Secrets — never commit real env files
+.env
+.env.local
+.env.*.local
+
+# Logs / OS cruft
+*.log
+.DS_Store
