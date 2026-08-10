@@ -1,10 +1,31 @@
-# Activity Tracker — Backend
+# Activity Tracker
 
 Express + TypeScript + Mongoose backend for a Hubstaff-style desktop activity
 tracker. It serves both the user-facing auth API and the **desktop-agent API**
 (device registration, activity-segment ingestion, screenshot presign/confirm to
 Cloudflare R2, and telemetry events). Designed to deploy on **Vercel** (serverless)
 with **MongoDB Atlas** and **Cloudflare R2** for screenshot storage.
+
+## ⬇️ Download the desktop agent
+
+| Platform | Download |
+| --- | --- |
+| **Windows** | **[Download installer (.exe)](https://github.com/Saif-Ul-llah/activity_tracker_backend/releases/download/agent-v0.1.0/Tracker-Agent-Setup-0.1.0.exe)** |
+| **Linux** | [Download AppImage](https://github.com/Saif-Ul-llah/activity_tracker_backend/releases/download/agent-v0.1.0/Tracker-Agent-0.1.0.AppImage) |
+
+All releases: <https://github.com/Saif-Ul-llah/activity_tracker_backend/releases>
+
+**How it works:** install and sign in **once** — the agent then auto-starts in the
+background (system tray) on every boot and tracks silently. No repeated logins.
+
+> **Windows note:** the installer is currently unsigned, so Windows SmartScreen shows
+> a warning on first run. Click **More info → Run anyway**. (Production builds should
+> be signed with an EV code-signing certificate.)
+>
+> **Linux note:** if double-clicking the AppImage does nothing, either
+> `sudo apt install libfuse2`, or run it FUSE-free:
+> `APPIMAGE_EXTRACT_AND_RUN=1 ./Tracker-Agent-0.1.0.AppImage --no-sandbox`.
+> Full activity tracking on Linux requires an **Xorg** session (Wayland is degraded).
 
 ## Architecture
 
