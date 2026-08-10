@@ -2,6 +2,7 @@ import {
   S3Client,
   PutObjectCommand,
   HeadObjectCommand,
+  GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { appConfig } from "../config/app_config";
@@ -61,6 +62,21 @@ export const presignPut = async (input: PresignInput): Promise<string> => {
     // Sign content-type so the agent's PUT must match what it declared at presign.
     signableHeaders: new Set(["content-type"]),
   });
+};
+
+/**
+ * Returns a short-lived presigned GET URL so the admin dashboard can display a
+ * private screenshot without making the bucket public. Default 1-hour expiry.
+ */
+export const presignGet = async (
+  objectKey: string,
+  expiresInSeconds = 60 * 60
+): Promise<string> => {
+  const command = new GetObjectCommand({
+    Bucket: appConfig.r2.bucket,
+    Key: objectKey,
+  });
+  return getSignedUrl(getClient(), command, { expiresIn: expiresInSeconds });
 };
 
 export interface HeadResult {
