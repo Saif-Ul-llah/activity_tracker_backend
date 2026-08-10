@@ -1,5 +1,5 @@
 import AdminRepo, { RangeFilter } from "./admin_repo";
-import { presignGet, isR2Configured } from "../../utils/r2";
+import { presignGet, isR2Configured, deleteObjects } from "../../utils/r2";
 import { encryptPass, HttpError } from "../../imports";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -148,6 +148,57 @@ class AdminServices {
     const d = await AdminRepo.setDeviceRevoked(deviceId, revoked);
     if (!d) throw HttpError.notFound("Device not found");
     return { id: String((d as any)._id), revoked: (d as any).revoked };
+  }
+
+  // ── Storage / global settings ─────────────────────────────────────────────────
+  static async storage() {
+    const [usage, settings, byDay] = await Promise.all([
+      AdminRepo.r2Usage(),
+      AdminRepo.getGlobalSettings(),
+      AdminRepo.storageByDay(),
+    ]);
+    const limitBytes = (settings as any).r2LimitBytes as number;
+    return {
+      usedBytes: usage.usedBytes,
+      screenshotCount: usage.count,
+      limitBytes,
+      usedPercent:
+        limitBytes > 0
+          ? Math.min(100, Math.round((usage.usedBytes / limitBytes) * 100))
+          : 0,
+      screenshotUploadEnabled: (settings as any).screenshotUploadEnabled,
+      byDay,
+    };
+  }
+
+  static async updateGlobalSettings(changes: {
+    screenshotUploadEnabled?: boolean;
+    r2LimitBytes?: number;
+  }) {
+    const s = await AdminRepo.updateGlobalSettings(changes);
+    return {
+      screenshotUploadEnabled: (s as any).screenshotUploadEnabled,
+      r2LimitBytes: (s as any).r2LimitBytes,
+    };
+  }
+
+  // Bulk-delete screenshots from R2 AND Mongo to free storage. R2 objects are
+  // removed first; the DB rows are dropped only for objects R2 accepted.
+  static async deleteScreenshots(sel: {
+    ids?: string[];
+    deviceId?: string;
+    userId?: string;
+    before?: number;
+    all?: boolean;
+  }) {
+    const { ids, objectKeys } = await AdminRepo.screenshotsToDelete(sel);
+    if (ids.length === 0) return { deleted: 0, freedFromR2: 0 };
+    let freedFromR2 = 0;
+    if (isR2Configured()) {
+      freedFromR2 = await deleteObjects(objectKeys);
+    }
+    const deleted = await AdminRepo.deleteScreenshotDocs(ids);
+    return { deleted, freedFromR2 };
   }
 }
 

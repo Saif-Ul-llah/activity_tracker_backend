@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
   GetObjectCommand,
+  DeleteObjectsCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { appConfig } from "../config/app_config";
@@ -77,6 +78,27 @@ export const presignGet = async (
     Key: objectKey,
   });
   return getSignedUrl(getClient(), command, { expiresIn: expiresInSeconds });
+};
+
+/**
+ * Deletes objects from R2 in batches of 1000 (the S3 DeleteObjects limit). Returns
+ * the count actually deleted. Used by the admin bulk-delete to free storage.
+ */
+export const deleteObjects = async (keys: string[]): Promise<number> => {
+  if (keys.length === 0) return 0;
+  const client = getClient();
+  let deleted = 0;
+  for (let i = 0; i < keys.length; i += 1000) {
+    const chunk = keys.slice(i, i + 1000);
+    const out = await client.send(
+      new DeleteObjectsCommand({
+        Bucket: appConfig.r2.bucket,
+        Delete: { Objects: chunk.map((Key) => ({ Key })), Quiet: true },
+      })
+    );
+    deleted += chunk.length - (out.Errors?.length ?? 0);
+  }
+  return deleted;
 };
 
 export interface HeadResult {

@@ -16,5 +16,8 @@ router.post("/devices/:id/revoke", AdminController.revokeDevice);
 router.get("/activity", AdminController.activity);
 router.get("/screenshots", AdminController.screenshots);
 router.get("/events", AdminController.events);
+router.get("/storage", AdminController.storage);
+router.patch("/settings", AdminController.updateSettings);
+router.post("/screenshots/delete", AdminController.deleteScreenshots);
 
 export default router;

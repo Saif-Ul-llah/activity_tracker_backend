@@ -5,6 +5,10 @@ import {
   AgentEventModel,
   UserModel,
 } from "../../imports";
+import {
+  getGlobalSettings,
+  AppSettingModel,
+} from "../../models/app_setting_model";
 
 export interface RangeFilter {
   from: Date;
@@ -254,6 +258,77 @@ class AdminRepo {
     if (changes.isActive !== undefined) set.IsActive = changes.isActive;
     if (changes.phoneNumber !== undefined) set.phoneNumber = changes.phoneNumber;
     return UserModel.findByIdAndUpdate(userId, { $set: set }, { new: true }).lean();
+  }
+
+  // ── R2 storage + global settings ──────────────────────────────────────────────
+  static async r2Usage(): Promise<{ usedBytes: number; count: number }> {
+    const r = await ScreenshotModel.aggregate([
+      { $group: { _id: null, bytes: { $sum: "$bytes" }, count: { $sum: 1 } } },
+    ]);
+    return { usedBytes: r[0]?.bytes ?? 0, count: r[0]?.count ?? 0 };
+  }
+
+  // Per-day storage growth (last 30 days) for a trend chart.
+  static storageByDay() {
+    return ScreenshotModel.aggregate([
+      {
+        $group: {
+          _id: { $dateTrunc: { date: "$capturedAtUtc", unit: "day" } },
+          bytes: { $sum: "$bytes" },
+          count: { $sum: 1 },
+        },
+      },
+      { $project: { _id: 0, day: "$_id", bytes: 1, count: 1 } },
+      { $sort: { day: 1 } },
+      { $limit: 60 },
+    ]);
+  }
+
+  // Returns the object keys + ids of screenshots matching a delete selection.
+  static async screenshotsToDelete(sel: {
+    ids?: string[];
+    deviceId?: string;
+    userId?: string;
+    before?: number; // ms epoch — delete captured before this
+    all?: boolean;
+  }): Promise<{ ids: string[]; objectKeys: string[] }> {
+    const m: Record<string, unknown> = {};
+    if (sel.ids && sel.ids.length) m._id = { $in: sel.ids };
+    if (sel.deviceId) m.deviceId = sel.deviceId;
+    if (sel.userId) m.userId = sel.userId;
+    if (sel.before) m.capturedAtUtc = { $lt: new Date(sel.before) };
+    // Guard: require at least one selector unless `all` is explicitly set.
+    if (!sel.all && Object.keys(m).length === 0) return { ids: [], objectKeys: [] };
+    const docs = await ScreenshotModel.find(m, "objectKey").lean();
+    return {
+      ids: docs.map((d: any) => String(d._id)),
+      objectKeys: docs.map((d: any) => d.objectKey),
+    };
+  }
+
+  static async deleteScreenshotDocs(ids: string[]): Promise<number> {
+    if (ids.length === 0) return 0;
+    const r = await ScreenshotModel.deleteMany({ _id: { $in: ids } });
+    return r.deletedCount ?? 0;
+  }
+
+  static getGlobalSettings() {
+    return getGlobalSettings();
+  }
+
+  static async updateGlobalSettings(changes: {
+    screenshotUploadEnabled?: boolean;
+    r2LimitBytes?: number;
+  }) {
+    const set: Record<string, unknown> = {};
+    if (changes.screenshotUploadEnabled !== undefined)
+      set.screenshotUploadEnabled = changes.screenshotUploadEnabled;
+    if (changes.r2LimitBytes !== undefined) set.r2LimitBytes = changes.r2LimitBytes;
+    return AppSettingModel.findOneAndUpdate(
+      { key: "global" },
+      { $set: set, $setOnInsert: { key: "global" } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
   }
 
   static async setDeviceRevoked(deviceId: string, revoked: boolean) {

@@ -97,6 +97,39 @@ class AdminController {
     const data = await AdminServices.revokeDevice(req.params.id, revoked);
     return sendResponse(res, 200, "Device updated", data, "success");
   });
+
+  // ── Storage / global settings ─────────────────────────────────────────────────
+  static storage = asyncHandler(async (_req: Request, res: Response) => {
+    const data = await AdminServices.storage();
+    return sendResponse(res, 200, "Storage", data, "success");
+  });
+
+  static deleteScreenshots = asyncHandler(async (req: Request, res: Response) => {
+    const b = req.body ?? {};
+    const sel = {
+      ids: Array.isArray(b.ids) ? b.ids.map(String) : undefined,
+      deviceId: b.deviceId ? String(b.deviceId) : undefined,
+      userId: b.userId ? String(b.userId) : undefined,
+      before: typeof b.before === "number" ? b.before : undefined,
+      all: b.all === true,
+    };
+    const data = await AdminServices.deleteScreenshots(sel);
+    return sendResponse(res, 200, "Screenshots deleted", data, "success");
+  });
+
+  static updateSettings = asyncHandler(async (req: Request, res: Response) => {
+    const body = req.body ?? {};
+    const changes: {
+      screenshotUploadEnabled?: boolean;
+      r2LimitBytes?: number;
+    } = {};
+    if (typeof body.screenshotUploadEnabled === "boolean")
+      changes.screenshotUploadEnabled = body.screenshotUploadEnabled;
+    if (typeof body.r2LimitBytes === "number" && body.r2LimitBytes >= 0)
+      changes.r2LimitBytes = body.r2LimitBytes;
+    const data = await AdminServices.updateGlobalSettings(changes);
+    return sendResponse(res, 200, "Settings updated", data, "success");
+  });
 }
 
 export default AdminController;

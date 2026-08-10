@@ -5,6 +5,7 @@ import {
   appConfig,
 } from "../../imports";
 import { presignPut, headObject, isR2Configured } from "../../utils/r2";
+import { getGlobalSettings } from "../../models/app_setting_model";
 import AgentRepo from "./agent_repo";
 import type { IDevice } from "../../models/device_model";
 import type {
@@ -29,6 +30,7 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   flushIntervalSec: 300,
   screenshotNotify: false,
   allowUserPause: true,
+  screenshotUploadEnabled: true,
 };
 
 const PRESIGN_TTL_SEC = 15 * 60;
@@ -69,7 +71,7 @@ class AgentServices {
       scope: ["agent"],
     });
 
-    const { settings, etag } = AgentServices.resolveSettings(device);
+    const { settings, etag } = await AgentServices.resolveSettings(device);
 
     return {
       deviceId: device.id,
@@ -80,12 +82,16 @@ class AgentServices {
   };
 
   // ── Settings ────────────────────────────────────────────────────────────────
-  private static resolveSettings(device: IDevice): {
+  // Resolution order: defaults → org-wide global settings (admin-controlled) →
+  // per-device overrides.
+  private static async resolveSettings(device: IDevice): Promise<{
     settings: AgentSettings;
     etag: string;
-  } {
+  }> {
+    const global = await getGlobalSettings();
     const settings: AgentSettings = {
       ...DEFAULT_AGENT_SETTINGS,
+      screenshotUploadEnabled: (global as any).screenshotUploadEnabled ?? true,
       ...(device.settingsOverride as Partial<AgentSettings> | undefined),
     };
     const etag =
@@ -99,7 +105,7 @@ class AgentServices {
     device: IDevice,
     ifNoneMatch?: string
   ): Promise<{ notModified: boolean; settings?: AgentSettings; etag: string }> => {
-    const { settings, etag } = AgentServices.resolveSettings(device);
+    const { settings, etag } = await AgentServices.resolveSettings(device);
     if (ifNoneMatch && ifNoneMatch === etag) {
       return { notModified: true, etag };
     }

@@ -34,6 +34,9 @@ export interface AgentSettings {
   flushIntervalSec: number;
   screenshotNotify: boolean;
   allowUserPause: boolean;
+  // When false, the agent keeps screenshots on the local machine instead of
+  // uploading them to R2 (admin-controlled, e.g. when nearing the storage limit).
+  screenshotUploadEnabled: boolean;
 }
 
 // ── Activity batch upload ─────────────────────────────────────────────────────
