@@ -182,6 +182,36 @@ class AdminServices {
     };
   }
 
+  // Permanently delete a user and all of their data (devices, activity, screenshots
+  // incl. R2 objects, events). Refuses to delete the last remaining admin.
+  static async deleteUser(userId: string, actingUserId: string) {
+    if (String(userId) === String(actingUserId)) {
+      throw HttpError.badRequest("You cannot delete your own account");
+    }
+    const user = await AdminRepo.findUserById(userId);
+    if (!user) throw HttpError.notFound("User not found");
+
+    // Clean R2 objects first, then cascade the DB rows.
+    if (isR2Configured()) {
+      const keys = await AdminRepo.screenshotKeysForUser(userId);
+      if (keys.length) await deleteObjects(keys);
+    }
+    const counts = await AdminRepo.deleteUserCascade(userId);
+    return counts;
+  }
+
+  static async clearActivity(sel: {
+    deviceId?: string;
+    userId?: string;
+    from?: number;
+    to?: number;
+    app?: string;
+    all?: boolean;
+  }) {
+    const deleted = await AdminRepo.deleteActivitySegments(sel);
+    return { deleted };
+  }
+
   // Bulk-delete screenshots from R2 AND Mongo to free storage. R2 objects are
   // removed first; the DB rows are dropped only for objects R2 accepted.
   static async deleteScreenshots(sel: {

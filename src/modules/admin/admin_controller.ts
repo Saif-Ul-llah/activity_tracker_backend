@@ -104,6 +104,28 @@ class AdminController {
     return sendResponse(res, 200, "Storage", data, "success");
   });
 
+  static deleteUser = asyncHandler(async (req: Request, res: Response) => {
+    const data = await AdminServices.deleteUser(
+      req.params.id,
+      String(req.user.id)
+    );
+    return sendResponse(res, 200, "User deleted", data, "success");
+  });
+
+  static clearActivity = asyncHandler(async (req: Request, res: Response) => {
+    const b = req.body ?? {};
+    const sel = {
+      deviceId: b.deviceId ? String(b.deviceId) : undefined,
+      userId: b.userId ? String(b.userId) : undefined,
+      app: b.app ? String(b.app) : undefined,
+      from: typeof b.from === "number" ? b.from : undefined,
+      to: typeof b.to === "number" ? b.to : undefined,
+      all: b.all === true,
+    };
+    const data = await AdminServices.clearActivity(sel);
+    return sendResponse(res, 200, "Activity cleared", data, "success");
+  });
+
   static deleteScreenshots = asyncHandler(async (req: Request, res: Response) => {
     const b = req.body ?? {};
     const sel = {

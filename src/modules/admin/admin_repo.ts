@@ -339,6 +339,60 @@ class AdminRepo {
     ).lean();
   }
 
+  static findUserById(userId: string) {
+    return UserModel.findById(userId).lean();
+  }
+
+  // Object keys of a user's screenshots (for R2 cleanup before cascade delete).
+  static async screenshotKeysForUser(userId: string): Promise<string[]> {
+    const docs = await ScreenshotModel.find({ userId }, "objectKey").lean();
+    return docs.map((d: any) => d.objectKey);
+  }
+
+  // Removes a user and everything belonging to them (devices, segments,
+  // screenshot rows, events). R2 objects are cleared by the service beforehand.
+  static async deleteUserCascade(userId: string) {
+    const [user, devices, segments, screenshots, events] = await Promise.all([
+      UserModel.deleteOne({ _id: userId }),
+      DeviceModel.deleteMany({ userId }),
+      ActivitySegmentModel.deleteMany({ userId }),
+      ScreenshotModel.deleteMany({ userId }),
+      AgentEventModel.deleteMany({ userId }),
+    ]);
+    return {
+      user: user.deletedCount ?? 0,
+      devices: devices.deletedCount ?? 0,
+      segments: segments.deletedCount ?? 0,
+      screenshots: screenshots.deletedCount ?? 0,
+      events: events.deletedCount ?? 0,
+    };
+  }
+
+  // Clear activity history by filter: device, user, time range, and/or app name.
+  static async deleteActivitySegments(sel: {
+    deviceId?: string;
+    userId?: string;
+    from?: number;
+    to?: number;
+    app?: string;
+    all?: boolean;
+  }): Promise<number> {
+    const m: Record<string, unknown> = {};
+    if (sel.deviceId) m.deviceId = sel.deviceId;
+    if (sel.userId) m.userId = sel.userId;
+    if (sel.app) m["app.name"] = sel.app;
+    if (sel.from || sel.to) {
+      const range: Record<string, Date> = {};
+      if (sel.from) range.$gte = new Date(sel.from);
+      if (sel.to) range.$lte = new Date(sel.to);
+      m.startedAtUtc = range;
+    }
+    // Guard: never delete the whole collection unless `all` is explicit.
+    if (!sel.all && Object.keys(m).length === 0) return 0;
+    const r = await ActivitySegmentModel.deleteMany(m);
+    return r.deletedCount ?? 0;
+  }
+
   static async listEvents(f: RangeFilter, page: number, limit: number) {
     const m: Record<string, unknown> = {
       atUtc: { $gte: f.from, $lte: f.to },
