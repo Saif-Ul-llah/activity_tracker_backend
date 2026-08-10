@@ -1,206 +1,152 @@
-# TypeScript Express MongoDB Boilerplate
+# Activity Tracker — Backend
 
-Backend boilerplate built with Express, TypeScript, MongoDB, Mongoose, Socket.IO, Firebase Admin, Nodemailer, Joi validation, and JWT-based auth helpers.
+Express + TypeScript + Mongoose backend for a Hubstaff-style desktop activity
+tracker. It serves both the user-facing auth API and the **desktop-agent API**
+(device registration, activity-segment ingestion, screenshot presign/confirm to
+Cloudflare R2, and telemetry events). Designed to deploy on **Vercel** (serverless)
+with **MongoDB Atlas** and **Cloudflare R2** for screenshot storage.
+
+## Architecture
+
+- **Screenshots never pass through the backend.** The agent requests a presigned R2
+  PUT URL, uploads the image bytes directly to R2, then confirms the object to the
+  backend. This keeps large uploads off Vercel's 4.5 MB body limit.
+- **Idempotent ingestion.** Activity segments and screenshot confirmations upsert on
+  unique keys (`deviceId + clientSegmentId`, `deviceId + clientScreenshotId`), so the
+  agent can safely retry any request without creating duplicates.
+- **Two token types.** Users authenticate with a normal access token (login). Each
+  device gets a long-lived, revocable **device token** (separate secret, `agent`
+  scope) stored encrypted on the machine.
+- **Serverless-safe.** Mongoose uses a cached global connection; the app auto-detects
+  Vercel (`process.env.VERCEL`) and skips the long-running `listen()`/Socket.IO path.
 
 ## Requirements
 
 - Node.js 18+
-- npm
-- MongoDB running locally or a hosted MongoDB connection string
+- MongoDB (local or Atlas)
+- A Cloudflare R2 bucket (for screenshots)
 
 ## Setup
 
-Install dependencies:
-
 ```bash
 npm install
+cp .env.example .env   # then fill in the values below
+npm run dev            # ts-node + nodemon on http://localhost:5000
 ```
 
-Create an environment file:
-
-```bash
-cp .env.example .env
-```
-
-Set at least these values:
-
-```env
-PORT=5000
-MONGO_URI=mongodb://localhost:27017/ts_boiler_plate_mern
-JWT_SECRET=your-secret
-EMAIL_USER=
-EMAIL_PASSWORD=
-EMAIL_PORT=465
-EMAIL_HOST=smtp.gmail.com
-```
-
-## Scripts
-
-Run in development:
-
-```bash
-npm run dev
-```
-
-Build TypeScript:
+Build and run compiled:
 
 ```bash
 npm run build
-```
-
-Run the compiled app:
-
-```bash
 npm start
 ```
 
-## Docker
+## Environment variables
 
-Start the API with MongoDB:
+`.env` is git-ignored — never commit real secrets. See `.env.example` for the full
+list. Required in production:
 
-```bash
-docker compose up --build
-```
+| Variable | Purpose |
+| --- | --- |
+| `MONGO_URI` | MongoDB Atlas connection string |
+| `ACCESS_TOKEN_SECRET` | Signs user access tokens (authoritative). `JWT_SECRET` is a legacy alias. |
+| `REFRESH_TOKEN_SECRET` | Signs user refresh tokens |
+| `DEVICE_TOKEN_SECRET` | Signs long-lived device tokens (must differ from user secrets) |
+| `R2_ACCOUNT_ID` | Cloudflare account id (derives the S3 endpoint) |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | R2 S3 API credentials |
+| `R2_BUCKET` | Screenshot bucket name |
+| `R2_ENDPOINT` | Optional explicit S3 endpoint (defaults to `https://<account>.r2.cloudflarestorage.com`) |
+| `R2_PUBLIC_BASE` | Public base URL for reading screenshots (dashboard) |
+| `CORS_ORIGINS` | Comma-separated allowed browser origins (empty = allow all, dev only) |
+| `EMAIL_USER` / `EMAIL_PASSWORD` / `EMAIL_HOST` / `EMAIL_PORT` | Nodemailer (OTP emails) |
 
-The compose file starts:
-
-- `mongo` on port `27017`
-- `node_backend` on port `5000`
-
-Inside Docker, the app uses:
-
-```env
-MONGO_URI=mongodb://mongo:27017/ts_boiler_plate_mern
-```
+Generate strong secrets with `openssl rand -hex 32`.
 
 ## API
 
-Base URL:
+Base URL: `http://localhost:5000/api`
 
-```text
-http://localhost:5000/api
-```
-
-Health/root check:
-
-```http
-GET /
-```
-
-Auth routes:
+### Auth (user token)
 
 ```http
 POST /api/register
 POST /api/login
 POST /api/forgot-password
 POST /api/verify-otp
-POST /api/reset-password
-POST /api/change-password
+POST /api/reset-password      # requires Authorization: Bearer <accessToken>
+POST /api/change-password     # requires Authorization: Bearer <accessToken>
 ```
 
-`/api/reset-password` and `/api/change-password` require:
+Register body:
+
+```json
+{ "email": "user@example.com", "password": "password123",
+  "fullName": "Test User", "phoneNumber": "1234567890", "role": "CUSTOMER" }
+```
+
+Roles: `ADMIN, SUB_ADMIN, DISTRIBUTOR, INSTALLER, CUSTOMER`.
+
+### Desktop agent
 
 ```http
-Authorization: Bearer <accessToken>
+POST /api/agent/devices/register     # user token -> issues deviceId + device token
+GET  /api/agent/settings             # device token; supports ETag / 304
+HEAD /api/agent/ping                 # public, DB-free connectivity probe
+POST /api/agent/activity/batch       # device token; idempotent segment upsert
+POST /api/agent/screenshots/presign  # device token; returns presigned R2 PUT URLs
+POST /api/agent/screenshots/confirm  # device token; verifies object then records it
+POST /api/agent/events               # device token; crash / clock_jump / quota telemetry
 ```
 
-### Register
+All `/api/agent/*` routes except `ping` and `devices/register` require:
 
-```json
-{
-  "email": "user@example.com",
-  "password": "password123",
-  "fullName": "Test User",
-  "phoneNumber": "1234567890",
-  "role": "CUSTOMER"
-}
+```http
+Authorization: Bearer <deviceToken>
 ```
 
-Valid roles:
+`devices/register` requires a **user** access token. A device token is revoked by
+rotating `tokenId` on the device document or setting `revoked: true`.
 
-```text
-ADMIN, SUB_ADMIN, DISTRIBUTOR, INSTALLER, CUSTOMER
+## Response envelope
+
+Success: `{ "status": "success", "message": "...", "data": ... }`
+Error:   `{ "success": false, "code": "...", "message": "..." }`
+
+## Deployment (Vercel)
+
+`vercel.json` routes all requests to the compiled Express app via `@vercel/node`.
+
+1. Import this repo at <https://vercel.com/new> (or `npx vercel link`).
+2. Set the environment variables above in **Project → Settings → Environment Variables**.
+3. Every push to `main` auto-deploys.
+
+Because screenshots upload directly to R2, keep activity batches small (the code caps
+them at ≤200 segments / ~1 MB) to stay within serverless limits.
+
+## Local with Docker
+
+```bash
+docker compose up --build   # mongo on 27017, backend on 5000
 ```
 
-### Login
-
-```json
-{
-  "email": "user@example.com",
-  "password": "password123"
-}
-```
-
-### Forgot Password
-
-```json
-{
-  "email": "user@example.com"
-}
-```
-
-### Verify OTP
-
-```json
-{
-  "email": "user@example.com",
-  "otp": 123456
-}
-```
-
-### Reset Password
-
-```json
-{
-  "newPassword": "newpassword123"
-}
-```
-
-### Change Password
-
-```json
-{
-  "oldPassword": "password123",
-  "newPassword": "newpassword123"
-}
-```
-
-## Project Structure
+## Project structure
 
 ```text
 src/
-  app.ts
-  config/
-    app_config.ts
-    database.ts
-    firebase_config.ts
-  helpers/
-  middlewares/
-  models/
-    user_model.ts
+  app.ts                 # dual-mode entry (long-running + serverless)
+  config/                # app_config, database (cached conn), firebase, email
+  middlewares/           # async, error, check_token (user), check_device_token (agent)
+  models/                # user, device, activity_segment, screenshot, agent_event
   modules/
-    auth/
-  routes/
-  services/
-  types/
-  utils/
+    auth/                # route/controller/services/repo
+    agent/               # route/controller/services/repo
+  helpers/validations/   # Joi schemas (auth, agent)
+  utils/                 # http_error, helpers (tokens), r2 (presign)
+  routes/                # aggregates auth + /agent routers
 ```
-
-## Database
-
-The app uses Mongoose models in `src/models`. The current models are:
-
-- `User`
-- `UserVerification`
-
-Configure the database with `MONGO_URI`.
-
-## Firebase Admin
-
-Firebase Admin will use `src/config/service_account_key.json` if it exists. The file is optional for local builds, but Firebase operations require valid credentials at runtime.
 
 ## Notes
 
-- This project uses MongoDB/Mongoose and does not require Prisma commands, migrations, or generated Prisma clients.
-- Passwords are hashed before storage.
-- Duplicate MongoDB key errors and Mongoose validation errors are normalized by the global error middleware.
+- Passwords are hashed (bcrypt); duplicate-key and Mongoose validation errors are
+  normalized by the global error middleware.
+- Firebase Admin uses `src/config/service_account_key.json` if present (optional).
