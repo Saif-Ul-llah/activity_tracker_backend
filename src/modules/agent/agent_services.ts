@@ -89,9 +89,15 @@ class AgentServices {
     etag: string;
   }> {
     const global = await getGlobalSettings();
+    const globalInterval = (global as any).screenshotIntervalSec;
     const settings: AgentSettings = {
       ...DEFAULT_AGENT_SETTINGS,
       screenshotUploadEnabled: (global as any).screenshotUploadEnabled ?? true,
+      // Org-wide capture interval (admin-controlled); per-device override still wins.
+      screenshotIntervalSec:
+        typeof globalInterval === "number" && globalInterval > 0
+          ? globalInterval
+          : DEFAULT_AGENT_SETTINGS.screenshotIntervalSec,
       ...(device.settingsOverride as Partial<AgentSettings> | undefined),
     };
     const etag =
@@ -245,6 +251,20 @@ class AgentServices {
       duplicates: result.matched,
       rejected,
     };
+  };
+
+  // ── Browser tabs ──────────────────────────────────────────────────────────────
+  public static ingestBrowserTabsService = async (
+    device: IDevice,
+    body: { browsers: any[] }
+  ) => {
+    const result = await AgentRepo.upsertBrowserSnapshots(
+      device.id,
+      String(device.userId),
+      body.browsers
+    );
+    await AgentRepo.touchDevice(device.id);
+    return { received: body.browsers.length, stored: result.upserted };
   };
 
   // ── Events ───────────────────────────────────────────────────────────────────

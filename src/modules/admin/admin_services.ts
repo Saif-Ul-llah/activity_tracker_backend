@@ -115,6 +115,10 @@ class AdminServices {
     return AdminRepo.listEvents(f, page, limit);
   }
 
+  static browserTabs(scope: { deviceId?: string; userId?: string }) {
+    return AdminRepo.listBrowserSnapshots(scope);
+  }
+
   // ── User management ───────────────────────────────────────────────────────────
   static async createUser(payload: {
     email: string;
@@ -167,6 +171,7 @@ class AdminServices {
           ? Math.min(100, Math.round((usage.usedBytes / limitBytes) * 100))
           : 0,
       screenshotUploadEnabled: (settings as any).screenshotUploadEnabled,
+      screenshotIntervalSec: (settings as any).screenshotIntervalSec ?? 15,
       byDay,
     };
   }
@@ -174,11 +179,13 @@ class AdminServices {
   static async updateGlobalSettings(changes: {
     screenshotUploadEnabled?: boolean;
     r2LimitBytes?: number;
+    screenshotIntervalSec?: number;
   }) {
     const s = await AdminRepo.updateGlobalSettings(changes);
     return {
       screenshotUploadEnabled: (s as any).screenshotUploadEnabled,
       r2LimitBytes: (s as any).r2LimitBytes,
+      screenshotIntervalSec: (s as any).screenshotIntervalSec ?? 15,
     };
   }
 

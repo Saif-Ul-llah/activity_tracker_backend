@@ -73,6 +73,14 @@ class AdminController {
     return sendResponse(res, 200, "Events", data, "success");
   });
 
+  static browserTabs = asyncHandler(async (req: Request, res: Response) => {
+    const data = await AdminServices.browserTabs({
+      deviceId: req.query.deviceId ? String(req.query.deviceId) : undefined,
+      userId: req.query.userId ? String(req.query.userId) : undefined,
+    });
+    return sendResponse(res, 200, "Browser tabs", data, "success");
+  });
+
   // ── User management ───────────────────────────────────────────────────────────
   static createUser = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
@@ -144,11 +152,18 @@ class AdminController {
     const changes: {
       screenshotUploadEnabled?: boolean;
       r2LimitBytes?: number;
+      screenshotIntervalSec?: number;
     } = {};
     if (typeof body.screenshotUploadEnabled === "boolean")
       changes.screenshotUploadEnabled = body.screenshotUploadEnabled;
     if (typeof body.r2LimitBytes === "number" && body.r2LimitBytes >= 0)
       changes.r2LimitBytes = body.r2LimitBytes;
+    // Capture interval: clamp to a sane 3s–3600s range.
+    if (typeof body.screenshotIntervalSec === "number")
+      changes.screenshotIntervalSec = Math.min(
+        3600,
+        Math.max(3, Math.round(body.screenshotIntervalSec))
+      );
     const data = await AdminServices.updateGlobalSettings(changes);
     return sendResponse(res, 200, "Settings updated", data, "success");
   });

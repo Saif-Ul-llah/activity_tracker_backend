@@ -16,6 +16,7 @@ router.get("/settings", checkDeviceToken, AgentController.getSettings);
 router.post("/activity/batch", checkDeviceToken, AgentController.activityBatch);
 router.post("/screenshots/presign", checkDeviceToken, AgentController.presign);
 router.post("/screenshots/confirm", checkDeviceToken, AgentController.confirm);
+router.post("/browser/tabs", checkDeviceToken, AgentController.browserTabs);
 router.post("/events", checkDeviceToken, AgentController.events);
 
 export default router;

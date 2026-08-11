@@ -18,6 +18,7 @@ router.get("/activity", AdminController.activity);
 router.post("/activity/delete", AdminController.clearActivity);
 router.get("/screenshots", AdminController.screenshots);
 router.get("/events", AdminController.events);
+router.get("/browser-tabs", AdminController.browserTabs);
 router.get("/storage", AdminController.storage);
 router.patch("/settings", AdminController.updateSettings);
 router.post("/screenshots/delete", AdminController.deleteScreenshots);

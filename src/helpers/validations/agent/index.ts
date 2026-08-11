@@ -38,7 +38,7 @@ const segmentSchema = Joi.object({
   window: Joi.object({
     title: Joi.string().allow(""),
     urlSource: Joi.string()
-      .valid("uia", "atspi", "title-fallback", "none")
+      .valid("uia", "atspi", "title-fallback", "browser-ext", "none")
       .default("none"),
     url: Joi.string().allow(""),
     domain: Joi.string().allow(""),
@@ -104,6 +104,32 @@ export const confirmValidation = Joi.object({
     )
     .min(1)
     .max(16)
+    .required(),
+});
+
+export const browserTabsValidation = Joi.object({
+  browsers: Joi.array()
+    .items(
+      Joi.object({
+        browser: Joi.string().min(1).max(40).required(),
+        activeUrl: Joi.string().allow("").max(4000).default(""),
+        activeTitle: Joi.string().allow("").max(2000).default(""),
+        capturedAt: Joi.number().default(0),
+        tabs: Joi.array()
+          .items(
+            Joi.object({
+              url: Joi.string().max(4000).required(),
+              title: Joi.string().allow("").max(2000).default(""),
+              active: Joi.boolean().default(false),
+              favIconUrl: Joi.string().allow("").max(4000).default(""),
+            })
+          )
+          .max(300)
+          .default([]),
+      })
+    )
+    .min(1)
+    .max(12)
     .required(),
 });
 

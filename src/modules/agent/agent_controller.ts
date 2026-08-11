@@ -10,6 +10,7 @@ import {
   presignValidation,
   confirmValidation,
   agentEventsValidation,
+  browserTabsValidation,
 } from "../../imports";
 import AgentServices from "./agent_services";
 
@@ -94,6 +95,21 @@ class AgentController {
         value
       );
       return sendResponse(res, 200, "Screenshots confirmed", result, "success");
+    }
+  );
+
+  // POST /api/agent/browser/tabs   (device token)
+  public static browserTabs = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+      const { error, value } = browserTabsValidation.validate({ ...req.body });
+      if (error) {
+        return next(HttpError.validationError(error.details[0].message));
+      }
+      const result = await AgentServices.ingestBrowserTabsService(
+        req.device,
+        value
+      );
+      return sendResponse(res, 200, "Browser tabs ingested", result, "success");
     }
   );
 

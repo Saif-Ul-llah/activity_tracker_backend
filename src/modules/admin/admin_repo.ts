@@ -4,6 +4,7 @@ import {
   DeviceModel,
   AgentEventModel,
   UserModel,
+  BrowserSnapshotModel,
 } from "../../imports";
 import {
   getGlobalSettings,
@@ -319,11 +320,14 @@ class AdminRepo {
   static async updateGlobalSettings(changes: {
     screenshotUploadEnabled?: boolean;
     r2LimitBytes?: number;
+    screenshotIntervalSec?: number;
   }) {
     const set: Record<string, unknown> = {};
     if (changes.screenshotUploadEnabled !== undefined)
       set.screenshotUploadEnabled = changes.screenshotUploadEnabled;
     if (changes.r2LimitBytes !== undefined) set.r2LimitBytes = changes.r2LimitBytes;
+    if (changes.screenshotIntervalSec !== undefined)
+      set.screenshotIntervalSec = changes.screenshotIntervalSec;
     return AppSettingModel.findOneAndUpdate(
       { key: "global" },
       { $set: set, $setOnInsert: { key: "global" } },
@@ -391,6 +395,53 @@ class AdminRepo {
     if (!sel.all && Object.keys(m).length === 0) return 0;
     const r = await ActivitySegmentModel.deleteMany(m);
     return r.deletedCount ?? 0;
+  }
+
+  // Latest open-tab snapshots, newest first, joined with device/user names for display.
+  static async listBrowserSnapshots(scope: {
+    deviceId?: string;
+    userId?: string;
+  }) {
+    const m: Record<string, unknown> = {};
+    if (scope.deviceId) m.deviceId = scope.deviceId;
+    if (scope.userId) m.userId = scope.userId;
+    const snaps = await BrowserSnapshotModel.find(m)
+      .sort({ updatedAt: -1 })
+      .limit(100)
+      .lean();
+
+    const deviceIds = [...new Set(snaps.map((s: any) => String(s.deviceId)))];
+    const userIds = [...new Set(snaps.map((s: any) => String(s.userId)))];
+    const [devices, users] = await Promise.all([
+      DeviceModel.find({ _id: { $in: deviceIds } }, "name platform").lean(),
+      UserModel.find({ _id: { $in: userIds } }, "fullName email").lean(),
+    ]);
+    const dMap = new Map(devices.map((d: any) => [String(d._id), d]));
+    const uMap = new Map(users.map((u: any) => [String(u._id), u]));
+
+    return snaps.map((s: any) => ({
+      id: String(s._id),
+      deviceId: String(s.deviceId),
+      deviceName: dMap.get(String(s.deviceId))?.name ?? "Unknown device",
+      platform: dMap.get(String(s.deviceId))?.platform ?? "",
+      userId: String(s.userId),
+      userName:
+        uMap.get(String(s.userId))?.fullName ??
+        uMap.get(String(s.userId))?.email ??
+        "",
+      browser: s.browser,
+      activeUrl: s.activeUrl,
+      activeTitle: s.activeTitle,
+      tabs: (s.tabs ?? []).map((t: any) => ({
+        url: t.url,
+        title: t.title,
+        active: t.active,
+        favIconUrl: t.favIconUrl,
+      })),
+      tabCount: s.tabCount ?? (s.tabs ?? []).length,
+      capturedAtUtc: s.capturedAtUtc,
+      updatedAt: s.updatedAt,
+    }));
   }
 
   static async listEvents(f: RangeFilter, page: number, limit: number) {

@@ -8,7 +8,12 @@ export type SegmentState =
   | "suspended"
   | "discarded";
 
-export type UrlSource = "uia" | "atspi" | "title-fallback" | "none";
+export type UrlSource =
+  | "uia"
+  | "atspi"
+  | "title-fallback"
+  | "browser-ext"
+  | "none";
 
 export interface IActivitySegment extends Document {
   id: string;
@@ -89,7 +94,7 @@ const activitySegmentSchema = new Schema<IActivitySegment>(
       title: { type: String },
       urlSource: {
         type: String,
-        enum: ["uia", "atspi", "title-fallback", "none"],
+        enum: ["uia", "atspi", "title-fallback", "browser-ext", "none"],
         default: "none",
       },
       url: { type: String },

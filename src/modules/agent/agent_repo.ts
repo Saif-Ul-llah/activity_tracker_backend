@@ -3,6 +3,7 @@ import {
   ActivitySegmentModel,
   ScreenshotModel,
   AgentEventModel,
+  BrowserSnapshotModel,
 } from "../../imports";
 import type { IDevice } from "../../models/device_model";
 
@@ -125,6 +126,51 @@ class AgentRepo {
       upserted: res.upsertedCount ?? 0,
       matched: res.matchedCount ?? 0,
     };
+  };
+
+  // Upsert the current open-tab snapshot per (device, browser). Current-state, so we
+  // overwrite rather than append. Browsers not present in this push are left as-is
+  // (they'll age out on the read side / be replaced on their next report).
+  public static upsertBrowserSnapshots = async (
+    deviceId: string,
+    userId: string,
+    browsers: {
+      browser: string;
+      activeUrl?: string;
+      activeTitle?: string;
+      capturedAt?: number;
+      tabs?: { url: string; title?: string; active?: boolean; favIconUrl?: string }[];
+    }[]
+  ): Promise<{ upserted: number }> => {
+    if (browsers.length === 0) return { upserted: 0 };
+    const ops = browsers.map((b) => {
+      const browser = String(b.browser).toLowerCase();
+      const tabs = (b.tabs ?? []).map((t) => ({
+        url: t.url,
+        title: t.title ?? "",
+        active: t.active ?? false,
+        favIconUrl: t.favIconUrl ?? "",
+      }));
+      return {
+        updateOne: {
+          filter: { deviceId, browser },
+          update: {
+            $set: {
+              userId,
+              activeUrl: b.activeUrl ?? "",
+              activeTitle: b.activeTitle ?? "",
+              tabs,
+              tabCount: tabs.length,
+              capturedAtUtc: b.capturedAt ? new Date(b.capturedAt) : new Date(),
+            },
+            $setOnInsert: { deviceId, browser },
+          },
+          upsert: true,
+        },
+      };
+    });
+    const res = await BrowserSnapshotModel.bulkWrite(ops, { ordered: false });
+    return { upserted: (res.upsertedCount ?? 0) + (res.modifiedCount ?? 0) };
   };
 
   public static insertEvents = async (

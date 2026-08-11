@@ -9,6 +9,9 @@ export interface IAppSetting extends Document {
   screenshotUploadEnabled: boolean;
   // Soft cap for R2 screenshot storage (bytes), used for the dashboard gauge + alerts.
   r2LimitBytes: number;
+  // How often agents capture a screenshot (seconds). Admin-controllable; flows to
+  // agents via GET /api/agent/settings and applies live on their next capture cycle.
+  screenshotIntervalSec: number;
   updatedAt: Date;
 }
 
@@ -17,6 +20,7 @@ const appSettingSchema = new Schema<IAppSetting>(
     key: { type: String, required: true, unique: true, default: "global" },
     screenshotUploadEnabled: { type: Boolean, default: true },
     r2LimitBytes: { type: Number, default: 10 * 1024 * 1024 * 1024 }, // 10 GB
+    screenshotIntervalSec: { type: Number, default: 15 },
   },
   { timestamps: { createdAt: false, updatedAt: true }, versionKey: false }
 );
