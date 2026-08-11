@@ -44,6 +44,12 @@ background (system tray) on every boot and tracks silently. No repeated logins.
 - **Two token types.** Users authenticate with a normal access token (login). Each
   device gets a long-lived, revocable **device token** (separate secret, `agent`
   scope) stored encrypted on the machine.
+- **Browser tabs (optional).** A tiny browser extension (bundled at
+  `resources/browser-extension` in the agent) reports open tabs to the agent over
+  loopback `127.0.0.1`; the agent forwards a per-browser snapshot to
+  `/api/agent/browser/tabs`. The admin panel then shows every tab as a clickable link,
+  and activity segments carry the focused tab's real URL (`urlSource: browser-ext`) —
+  works identically on Windows, X11 and Wayland.
 - **Serverless-safe.** Mongoose uses a cached global connection; the app auto-detects
   Vercel (`process.env.VERCEL`) and skips the long-running `listen()`/Socket.IO path.
 
@@ -129,8 +135,9 @@ POST  /api/admin/activity/delete     # clear history by device / time range / ap
 GET   /api/admin/screenshots         # screenshots with short-lived presigned GET URLs
 POST  /api/admin/screenshots/delete  # bulk delete from R2 + DB (ids / older-than / all)
 GET   /api/admin/events              # agent telemetry
-GET   /api/admin/storage             # R2 usage vs limit, upload-paused state
-PATCH /api/admin/settings            # pause/resume R2 upload, set storage limit
+GET   /api/admin/browser-tabs        # latest open-tab snapshots per device/browser
+GET   /api/admin/storage             # R2 usage vs limit, upload-paused state, capture interval
+PATCH /api/admin/settings            # pause/resume R2 upload, storage limit, screenshot interval
 ```
 
 ### Desktop agent
@@ -142,6 +149,7 @@ HEAD /api/agent/ping                 # public, DB-free connectivity probe
 POST /api/agent/activity/batch       # device token; idempotent segment upsert
 POST /api/agent/screenshots/presign  # device token; returns presigned R2 PUT URLs
 POST /api/agent/screenshots/confirm  # device token; verifies object then records it
+POST /api/agent/browser/tabs         # device token; upserts current open-tab snapshot per browser
 POST /api/agent/events               # device token; crash / clock_jump / quota telemetry
 ```
 
