@@ -147,7 +147,8 @@ class AgentServices {
           String(device.userId),
           device.id,
           item.capturedAtUtc,
-          item.clientScreenshotId
+          item.clientScreenshotId,
+          item.contentType
         );
         const uploadUrl = await presignPut({
           objectKey,
@@ -171,7 +172,8 @@ class AgentServices {
     userId: string,
     deviceId: string,
     capturedAtUtc: number,
-    clientScreenshotId: string
+    clientScreenshotId: string,
+    contentType?: string
   ): string {
     const d = new Date(capturedAtUtc);
     const day = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(
@@ -180,7 +182,13 @@ class AgentServices {
     )}-${String(d.getUTCDate()).padStart(2, "0")}`;
     // clientScreenshotId already encodes outboxId + displayIndex and is filesystem-safe.
     const safeId = clientScreenshotId.replace(/[^a-zA-Z0-9_.-]/g, "_");
-    return `screenshots/${userId}/${deviceId}/${day}/${safeId}.webp`;
+    const ext =
+      contentType === "image/jpeg"
+        ? "jpg"
+        : contentType === "image/png"
+        ? "png"
+        : "webp";
+    return `screenshots/${userId}/${deviceId}/${day}/${safeId}.${ext}`;
   }
 
   // ── Screenshot confirm ──────────────────────────────────────────────────────
