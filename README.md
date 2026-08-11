@@ -25,7 +25,13 @@ background (system tray) on every boot and tracks silently. No repeated logins.
 > **Linux note:** if double-clicking the AppImage does nothing, either
 > `sudo apt install libfuse2`, or run it FUSE-free:
 > `APPIMAGE_EXTRACT_AND_RUN=1 ./Tracker-Agent-0.1.0.AppImage --no-sandbox`.
-> Full activity tracking on Linux requires an **Xorg** session (Wayland is degraded).
+>
+> **Wayland (default Ubuntu/GNOME):** the agent bundles a small GNOME Shell extension
+> that enables prompt-free screenshots and real app-name detection. It installs
+> automatically on first run — **log out and back in once** to activate it (Wayland
+> can't hot-reload extensions). Until then the agent tracks activity/idle only.
+> Keystroke/click *counts* remain 0 on Wayland (that API is X11-only); everything else
+> (app names, screenshots, idle) works. X11 and Windows work fully with no extra step.
 
 ## Architecture
 
@@ -90,7 +96,6 @@ Base URL: `http://localhost:5000/api`
 ### Auth (user token)
 
 ```http
-POST /api/register
 POST /api/login
 POST /api/forgot-password
 POST /api/verify-otp
@@ -98,14 +103,35 @@ POST /api/reset-password      # requires Authorization: Bearer <accessToken>
 POST /api/change-password     # requires Authorization: Bearer <accessToken>
 ```
 
-Register body:
-
-```json
-{ "email": "user@example.com", "password": "password123",
-  "fullName": "Test User", "phoneNumber": "1234567890", "role": "CUSTOMER" }
-```
+> **Public self-registration is disabled** (no `POST /api/register`) — accounts are
+> created only by an admin (`POST /api/admin/users`) or, for the first admin on a
+> fresh DB, the seed script:
+> ```bash
+> SEED_EMAIL=you@co.com SEED_PASSWORD='strongpass' SEED_NAME='You' npm run seed:admin
+> ```
 
 Roles: `ADMIN, SUB_ADMIN, DISTRIBUTOR, INSTALLER, CUSTOMER`.
+
+### Admin API (ADMIN / SUB_ADMIN token)
+
+Backs the Next.js admin panel — analytics, monitoring, and management.
+
+```http
+GET   /api/admin/overview            # KPIs, timeline, top apps, state breakdown, heatmap
+GET   /api/admin/users               # list users (+ device counts)
+POST  /api/admin/users               # create a user
+PATCH /api/admin/users/:id           # update role / active / name
+DELETE /api/admin/users/:id          # delete user + all their data (incl. R2 objects)
+GET   /api/admin/devices             # fleet devices, session/degraded flags, last-seen
+POST  /api/admin/devices/:id/revoke  # revoke / restore a device token
+GET   /api/admin/activity            # segments (paginated) + by-app / by-state / by-hour
+POST  /api/admin/activity/delete     # clear history by device / time range / app
+GET   /api/admin/screenshots         # screenshots with short-lived presigned GET URLs
+POST  /api/admin/screenshots/delete  # bulk delete from R2 + DB (ids / older-than / all)
+GET   /api/admin/events              # agent telemetry
+GET   /api/admin/storage             # R2 usage vs limit, upload-paused state
+PATCH /api/admin/settings            # pause/resume R2 upload, set storage limit
+```
 
 ### Desktop agent
 
