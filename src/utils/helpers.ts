@@ -231,7 +231,7 @@ const ACCESS_SECRET = appConfig.accessTokenSecret;
 const REFRESH_SECRET = appConfig.refreshTokenSecret;
 
 export const generateAccessToken = (payload: object) => {
-  return jwt.sign(payload, ACCESS_SECRET, { expiresIn: "15m" });
+  return jwt.sign(payload, ACCESS_SECRET, { expiresIn: "1h" });
 };
 
 export const generateRefreshToken = (payload: object) => {

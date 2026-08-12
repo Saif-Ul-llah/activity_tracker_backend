@@ -41,6 +41,13 @@ class AuthRepo {
     );
   };
 
+  public static getStoredRefreshToken = async (
+    userId: string
+  ): Promise<string | null> => {
+    const v = await UserVerificationModel.findOne({ userId });
+    return (v as any)?.refreshToken ?? null;
+  };
+
   public static saveResetOtp = async (
     userId: string,
     otp: number,

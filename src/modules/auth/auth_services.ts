@@ -11,6 +11,7 @@ import AuthRepo from "./auth_repo";
 import {
   generateAccessToken,
   generateRefreshToken,
+  verifyRefreshToken,
   getEmailVerificationHtml,
 } from "../../utils/helpers";
 
@@ -57,6 +58,38 @@ class AuthServices {
     await AuthRepo.updateRefreshToken(user.id, refreshToken);
 
     return { accessToken, refreshToken };
+  };
+
+  // Exchange a valid (unexpired, non-revoked) refresh token for a fresh access token.
+  // Rotates the refresh token so a stolen/old one can't be replayed after use.
+  public static refreshTokenService = async (refreshToken: string) => {
+    if (!refreshToken) throw HttpError.unauthorized("Missing refresh token");
+
+    let decoded: any;
+    try {
+      decoded = verifyRefreshToken(refreshToken);
+    } catch {
+      throw HttpError.unauthorized("Invalid or expired refresh token");
+    }
+
+    const userId = decoded?.id;
+    if (!userId) throw HttpError.unauthorized("Invalid refresh token");
+
+    // Must match the token currently on file (logout/rotation invalidates old ones).
+    const stored = await AuthRepo.getStoredRefreshToken(userId);
+    if (!stored || stored !== refreshToken) {
+      throw HttpError.unauthorized("Refresh token has been revoked");
+    }
+
+    const user = await AuthRepo.findById(userId);
+    if (!user) throw HttpError.unauthorized("User not found");
+
+    const data = { id: user.id, role: user.role };
+    const accessToken = generateAccessToken(data);
+    const newRefreshToken = generateRefreshToken(data);
+    await AuthRepo.updateRefreshToken(user.id, newRefreshToken);
+
+    return { accessToken, refreshToken: newRefreshToken };
   };
 
   public static forgotPasswordService = async (email: string) => {

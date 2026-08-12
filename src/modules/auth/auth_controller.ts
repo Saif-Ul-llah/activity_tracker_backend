@@ -52,6 +52,17 @@ class AuthController {
     }
   );
 
+  public static refresh = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+      const token = req.body?.refreshToken;
+      if (!token) {
+        return next(HttpError.validationError("refreshToken is required"));
+      }
+      const result = await AuthServices.refreshTokenService(token);
+      return sendResponse(res, 200, "Token refreshed", result, "success");
+    }
+  );
+
   public static forgotPassword = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
       const { email } = req.body;

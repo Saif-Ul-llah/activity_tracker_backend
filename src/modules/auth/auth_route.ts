@@ -5,6 +5,9 @@ import AuthController from "./auth_controller";
 const router = Router();
 
 router.post("/login", AuthController.login);
+// Exchange a 7-day refresh token for a fresh access token (keeps the admin panel
+// signed in past the short access-token lifetime).
+router.post("/refresh-token", AuthController.refresh);
 // Public self-registration is intentionally DISABLED — accounts are created only by
 // an admin (POST /api/admin/users) or the seed script (npm run seed:admin) for the
 // first admin on a fresh database.
