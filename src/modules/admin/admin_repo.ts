@@ -291,13 +291,22 @@ class AdminRepo {
     deviceId?: string;
     userId?: string;
     before?: number; // ms epoch — delete captured before this
+    from?: number; // ms epoch — delete captured at/after this (range start)
+    to?: number; // ms epoch — delete captured at/before this (range end)
     all?: boolean;
   }): Promise<{ ids: string[]; objectKeys: string[] }> {
     const m: Record<string, unknown> = {};
     if (sel.ids && sel.ids.length) m._id = { $in: sel.ids };
     if (sel.deviceId) m.deviceId = sel.deviceId;
     if (sel.userId) m.userId = sel.userId;
-    if (sel.before) m.capturedAtUtc = { $lt: new Date(sel.before) };
+    // Time window: any of from (>=), to (<=), before (<) can combine.
+    if (sel.from || sel.to || sel.before) {
+      const range: Record<string, Date> = {};
+      if (sel.from) range.$gte = new Date(sel.from);
+      if (sel.to) range.$lte = new Date(sel.to);
+      if (sel.before) range.$lt = new Date(sel.before);
+      m.capturedAtUtc = range;
+    }
     // Guard: require at least one selector unless `all` is explicitly set.
     if (!sel.all && Object.keys(m).length === 0) return { ids: [], objectKeys: [] };
     const docs = await ScreenshotModel.find(m, "objectKey").lean();

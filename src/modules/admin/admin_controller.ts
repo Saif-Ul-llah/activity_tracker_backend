@@ -141,6 +141,8 @@ class AdminController {
       deviceId: b.deviceId ? String(b.deviceId) : undefined,
       userId: b.userId ? String(b.userId) : undefined,
       before: typeof b.before === "number" ? b.before : undefined,
+      from: typeof b.from === "number" ? b.from : undefined,
+      to: typeof b.to === "number" ? b.to : undefined,
       all: b.all === true,
     };
     const data = await AdminServices.deleteScreenshots(sel);

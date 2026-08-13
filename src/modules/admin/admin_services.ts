@@ -226,6 +226,8 @@ class AdminServices {
     deviceId?: string;
     userId?: string;
     before?: number;
+    from?: number;
+    to?: number;
     all?: boolean;
   }) {
     const { ids, objectKeys } = await AdminRepo.screenshotsToDelete(sel);
