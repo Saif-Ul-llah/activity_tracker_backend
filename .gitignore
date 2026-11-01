@@ -3,7 +3,6 @@ service_account_key.json
 migrations
 
 dist
-config.bat
 
 # Secrets — never commit real env files
 .env
